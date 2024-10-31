@@ -16,7 +16,7 @@
   </p>
 </div>
 
-This bundle offers a bundling and hot module reloading setup for ApostropheCMS projects using Vite.
+This extension provides Vite integration for ApostropheCMS projects, enabling module bundling and hot module replacement (HMR) during development.
 
 ## Installation
 
@@ -41,9 +41,13 @@ require('apostrophe')({
 
 ## Configuration
 
-HMR is enabled for the project UI code by default. The module is controlled with the core asset options (no module options are available).
+## Hot Module Replacement Configuration
 
-## Switch to Apostrophe Admin UI HMR
+By default, HMR is enabled for your project's public UI code. All configuration is handled through ApostropheCMS's core asset module options, simplifying setup and maintenance.
+
+### Enable Admin UI HMR
+
+For development work on the ApostropheCMS admin interface, you can switch HMR to target the admin UI instead of public-facing components:
 
 ```javascript
 require('apostrophe')({
@@ -52,14 +56,16 @@ require('apostrophe')({
     '@apostrophecms/vite': {},
     '@apostrophecms/asset': {
       options: {
-        hmr: 'apos', // set to `public` to go back to the default behavior
+        hmr: 'apos', // 'public' targets the project UI (default)
       },
     },
   }
 });
 ```
 
-## Disable the HMR and the Vite development server
+### Disable HMR
+
+You can disable hot module replacement when it is not needed or desired, while still using Vite for builds:
 
 ```javascript
 require('apostrophe')({
@@ -76,8 +82,7 @@ require('apostrophe')({
 ```
 
 ## Change the underlying Websocket server port
-
-By default the websocket server runs on the same port as the ApostropheCMS server. If you want to change the port and switch the development server to a standalon `http` server, you can do so by setting the `hmrPort` option:
+During development, the hot module reload (HMR) server uses WebSocket and runs on the same port as your ApostropheCMS instance. For advanced configurations, you can run the development server as a standalone HTTP server on a different port by setting the `hmrPort` option. This can be useful when you need to avoid port conflicts or work with specific network configurations:
 
 ```javascript
 require('apostrophe')({
@@ -93,9 +98,9 @@ require('apostrophe')({
 });
 ```
 
-## Expose sourcemaps in production
+## Enable Source Maps in Production
 
-It's possible to release the sourcemap files in production if you want to debug the production build and see the original source code in the browser devtools.
+You can enable source maps in production to help debug minified code and view original source files in the browser DevTools. While this slightly increases the initial download size, it's valuable for debugging production issues.
 
 ```javascript
 require('apostrophe')({
@@ -113,7 +118,7 @@ require('apostrophe')({
 
 ## Inject code only when HMR is enabled
 
-If you want to inject some code in your site only when in development mode and HMR is enabled, you can use the Apostrophe nunjucks components. 
+If you want to inject some code in your site only when in development mode and HMR is enabled, you can use the Apostrophe nunjucks components.
 
 ```njk
 {# module-name/views/myComponent.html #}
@@ -140,25 +145,40 @@ module.exports = {
   }
 };
 ```
-You can also use `when: 'dev'` and `when: 'prod'` to show the component only in development or production mode respectively. `bundler: 'vite'` ensures that the component is only shown when the Vite bundler is used.
-
-## Extend the Vite configuration
-
-Two ways of doing it:
-- Module `build.vite` property
-- Project root `apos.vite.config.js` (when ESM project) or `apos.vite.config.mjs` (when CJS project)
-
-### Module `build.vite` property
+The when option controls when your component appears:
 
 ```javascript
-// my-module/index.js
+when: 'hmr'   // Only visible when HMR is active
+when: 'dev'   // Visible in any development mode
+when: 'prod'  // Only visible in production
+```
+
+The bundler option allows you to specify which bundler must be active for the component to appear:
+
+```javascript
+bundler: 'vite'    // Only visible when using Vite
+bundler: 'webpack' // Only visible when using webpack
+```
+
+You can combine these options to precisely control when your component appears. For example, to show a component only when using Vite with HMR active, you would use both `when: 'hmr'` and `bundler: 'vite'`.
+
+## Extending the Vite Configuration
+
+You can customize the Vite configuration for your ApostropheCMS project in two ways:
+
+### 1. Via Any Module `build.vite` Property
+
+Use this approach to configure Vite settings within individual ApostropheCMS modules:
+
+```javascript
+// modules/my-module/index.js
 module.exports = {
   build: {
     vite: {
       myViteConfig: {
         // Standard Vite configuration
         define: {
-        __MY_ENV__: '1',
+          __MY_ENV__: '1',
         },
       }
     },
@@ -166,15 +186,16 @@ module.exports = {
 };
 ```
 
-### Project root `apos.vite.config.js` or `apos.vite.config.mjs`
+### 2. Via Project Configuration File
 
-The exactly same configuration as in the Vite documentation can be used. It applies (again) only to the project UI build. 
+For project-wide Vite configuration, create one of these files in your project root:
+- `apos.vite.config.js` (for ESM projects)
+- `apos.vite.config.mjs` (for CommonJS projects)
 
-Example of adding a standard vite plugin to the Vite configuration:
+This method supports the full Vite configuration API and applies to your project's UI build. You can import Vite's configuration utilities directly from the ApostropheCMS Vite module:
 
 ```javascript
 // apos.vite.config.js
-// `vite` can be imported from the module
 import { defineConfig } from '@apostrophecms/vite/vite';
 import vue from '@vitejs/plugin-vue'
 
@@ -183,13 +204,39 @@ export default defineConfig({
 });
 ```
 
-## Limitations
+The configuration format follows the standard [Vite configuration options](https://vitejs.dev/config/). Common use cases include adding plugins, defining environment variables, and customizing build settings.
 
-- HMR watches only existing `anyModule/ui` directories, so if you add a `ui` directory to a module, you need to restart the server (type `rs` in the terminal and press `Enter` if you are using `nodemon` which is by default in ApostropheCMS starter kits) to make HMR work for the new module.
-- changes to `ui/public` does not trigger HMR and/or page reload, because those require a process restart. This might be implemented in the future (or might not, depending on the needs). A workaround is to register all `ui/public/` folders to the `nodemon` watch list (in the `nodemon.json` or `package.json` file, depending on the setup).
-- when configuring custom Vite `resolve.alias`, it should resolve to the appropraite `apos-build/...` source code, not the original source code. We should provide a way to do that (e.g. template `{srcRoot}` that will be replaced when we merge the configuration or argument `aposRoot` if a function is used).
+> Note: All Vite configurations are merged sequentially - first across modules (following module registration order, with later modules taking precedence), and finally with the project configuration file, which takes ultimate precedence.
 
-## Watch out in your code
-- Remove all `~` from your CSS/Sass imports (e.g. `~normalize.css` -> `normalize.css`)
-- **(recommended but not required)** Do not import apos sources directly from the `apostrophe/modules/module-name/ui/apos/components/...` but use the alias `Modules/module-name/components/...` instead. The alias is available only in the `apos` source code. Project code can introduce its own aliases.
-- Do not use any `cjs` imports/exports (`require(..)`, `module.exports`, `exports.xxx`) in your UI source code, only `esm` imports and exports (`import abc from xxx` or `const abc = await import(xxx)`, `export default ...`, `export something`) are supported.
+## Limitations and Known Issues
+
+### Hot Module Replacement
+- HMR only monitors existing `anyModule/ui` directories. If you add a new `ui` directory to a module, restart the server to enable HMR for that module. With default ApostropheCMS starter kits using `nodemon`, simply type `rs` in the terminal and press Enter.
+
+### Public Assets
+- Changes to `ui/public` directories don't trigger HMR or page reloads as they require a process restart
+- Workaround: Add `ui/public/` folders to your `nodemon` watch list in either `nodemon.json` or `package.json`
+- Future support for this feature will depend on user needs
+
+### Vite Alias Resolution
+- When setting custom `resolve.alias` in Vite configuration, paths must resolve to the appropriate `apos-build/...` source code rather than the original source
+- Future enhancement planned: We will provide templating (e.g., `{srcRoot}`) or function arguments (e.g., `aposRoot`) to simplify correct path resolution
+
+## Code Migration Guidelines
+
+### Import Paths
+- Remove all `~` prefixes from CSS/Sass imports
+  ```css
+  /* Instead of: @import "~normalize.css" */
+  @import "normalize.css"
+  ```
+
+### ApostropheCMS Module Imports
+- **Recommended**: Use the `Modules/module-name/components/...` alias instead of direct paths like `apostrophe/modules/module-name/ui/apos/components/...`
+- This alias is available only for `apos` source code; project code can define its own aliases
+
+### Module System
+- Use only ESM syntax in UI source code:
+  - ✅ `import abc from 'xxx'` or `const abc = await import('xxx')`
+  - ✅ `export default ...` or `export something`
+  - ❌ No CommonJS: `require()`, `module.exports`, `exports.xxx`
